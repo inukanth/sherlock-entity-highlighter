@@ -9,8 +9,8 @@
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // @connect      raw.githubusercontent.com
-// @updateURL    https://raw.githubusercontent.com/YourGitHubUsername/sherlock-entity-highlighter/main/sherlock-entity-highlighter.user.js
-// @downloadURL  https://raw.githubusercontent.com/YourGitHubUsername/sherlock-entity-highlighter/main/sherlock-entity-highlighter.user.js
+// @updateURL    https://raw.githubusercontent.com/inukanth/sherlock-entity-highlighter/main/sherlock-entity-highlighter.user.js
+// @downloadURL  https://raw.githubusercontent.com/inukanth/sherlock-entity-highlighter/main/sherlock-entity-highlighter.user.js
 // ==/UserScript==
 
 (function() {
@@ -31,7 +31,7 @@
     const defaultMessage = 'IMPORTANT: This entity requires special attention! Contact Inayat for assistance.';
     
     // Remote config URL - replace with your own GitHub repository
-    const configUrl = 'https://raw.githubusercontent.com/YourGitHubUsername/sherlock-entity-highlighter/main/config.json';
+    const configUrl = 'https://raw.githubusercontent.com/inukanth/sherlock-entity-highlighter/main/config.json';
     
     // How often to check for config updates (in milliseconds)
     const configUpdateInterval = 24 * 60 * 60 * 1000; // 24 hours
