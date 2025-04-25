@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         SBV Sherlock Entity ID Highlighter 
+// @name         SBV Sherlock Entity ID Highlighter
 // @namespace    http://tampermonkey.net/
 // @version      2.0
 // @description  Entity ID highlighter with remote configuration
@@ -15,36 +15,36 @@
 
 (function() {
     'use strict';
-    
+
     // ====== DEFAULT CONFIGURATION ======
-    
+
     // Default entity IDs - these will be used if remote fetch fails
     const defaultEntityIds = [
-        'ENTITY8PY6YS3KUYI',
-        'ENTITY3QC3QUMCNO777', 
+        'ENTITY16ZA6F48AQ9HR',
+        'ENTITY3QC3QUMCNO777',
         'ENTITY2JWP2XAWY2VV2',
-        'ENTITY30V4GQNAZQN5V',
+        'ENTITY16ZA6F48AQ9HR',
         'ENTITY1SX33X4DOXCAU'
     ];
-    
+
     // Default message - this will be used if remote fetch fails
     const defaultMessage = 'IMPORTANT: This entity requires special attention! Contact Inayat for assistance.';
-    
+
     // Remote config URL - replace with your own GitHub repository
     const configUrl = 'https://raw.githubusercontent.com/inukanth/sherlock-entity-highlighter/main/config.json';
-    
+
     // How often to check for config updates (in milliseconds)
     const configUpdateInterval = 24 * 60 * 60 * 1000; // 24 hours
-    
+
     // ====== END DEFAULT CONFIGURATION ======
-    
+
     // Current configuration - start with defaults
     let currentConfig = {
         entityIds: defaultEntityIds,
         message: defaultMessage,
         lastUpdated: 0 // Timestamp for last update
     };
-    
+
     // Add basic CSS
     GM_addStyle(`
         .entity-banner {
@@ -61,7 +61,7 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .close-button {
             background: none;
             border: none;
@@ -71,24 +71,24 @@
             padding: 0 5px;
         }
     `);
-    
+
     // Global variables
     let banner = null;
     let activeEntityId = null;
-    
+
     // Load config from localStorage
     function loadLocalConfig() {
         try {
             const savedConfig = localStorage.getItem('entityHighlighterConfig');
             if (savedConfig) {
                 const parsedConfig = JSON.parse(savedConfig);
-                
+
                 // If saved config is valid, use it
-                if (parsedConfig && 
-                    parsedConfig.entityIds && 
-                    parsedConfig.message && 
+                if (parsedConfig &&
+                    parsedConfig.entityIds &&
+                    parsedConfig.message &&
                     parsedConfig.lastUpdated) {
-                    
+
                     currentConfig = parsedConfig;
                     console.log('Loaded config from localStorage:', currentConfig);
                 }
@@ -97,7 +97,7 @@
             console.error('Error loading config from localStorage:', error);
         }
     }
-    
+
     // Save config to localStorage
     function saveLocalConfig() {
         try {
@@ -107,20 +107,20 @@
             console.error('Error saving config to localStorage:', error);
         }
     }
-    
+
     // Fetch remote config
     function fetchRemoteConfig() {
         // Only fetch if it's been more than the update interval
         const now = Date.now();
         if (now - currentConfig.lastUpdated < configUpdateInterval) {
-            console.log('Using cached config, next update in', 
-                        Math.round((configUpdateInterval - (now - currentConfig.lastUpdated)) / 1000 / 60), 
+            console.log('Using cached config, next update in',
+                        Math.round((configUpdateInterval - (now - currentConfig.lastUpdated)) / 1000 / 60),
                         'minutes');
             return;
         }
-        
+
         console.log('Fetching remote config...');
-        
+
         // Use GM_xmlhttpRequest to avoid CORS issues
         GM_xmlhttpRequest({
             method: 'GET',
@@ -129,23 +129,23 @@
                 if (response.status === 200) {
                     try {
                         const config = JSON.parse(response.responseText);
-                        
+
                         // Validate config
-                        if (config && 
-                            Array.isArray(config.entityIds) && 
-                            config.entityIds.length > 0 && 
+                        if (config &&
+                            Array.isArray(config.entityIds) &&
+                            config.entityIds.length > 0 &&
                             typeof config.message === 'string') {
-                            
+
                             // Update config
                             currentConfig.entityIds = config.entityIds;
                             currentConfig.message = config.message;
                             currentConfig.lastUpdated = now;
-                            
+
                             // Save to localStorage
                             saveLocalConfig();
-                            
+
                             console.log('Updated config from remote:', config);
-                            
+
                             // Re-check entity IDs with new config
                             checkForEntityIds();
                         } else {
@@ -163,14 +163,14 @@
             }
         });
     }
-    
+
     // Create or update banner
     function createBanner(entityId) {
         // Remove any existing banner
         if (banner) {
             banner.remove();
         }
-        
+
         // Create new banner
         banner = document.createElement('div');
         banner.className = 'entity-banner';
@@ -179,20 +179,20 @@
             <span>Entity ID: ${entityId}</span>
             <button class="close-button">×</button>
         `;
-        
+
         // Add to page
         document.body.appendChild(banner);
-        
+
         // Add close button handler
         banner.querySelector('.close-button').addEventListener('click', function() {
             banner.remove();
             banner = null;
         });
-        
+
         // Store current entity ID
         activeEntityId = entityId;
     }
-    
+
     // Remove banner
     function removeBanner() {
         if (banner) {
@@ -201,38 +201,38 @@
         }
         activeEntityId = null;
     }
-    
+
     // Check for navigation changes
     function setupNavigationTracking() {
         // Track clicks that might navigate
         document.addEventListener('click', function(e) {
             // Look for navigation-related elements
-            if (e.target.tagName === 'A' || 
+            if (e.target.tagName === 'A' ||
                 e.target.tagName === 'BUTTON' ||
                 e.target.parentElement.tagName === 'A' ||
                 e.target.closest('a') ||
                 e.target.closest('button') ||
                 e.target.getAttribute('role') === 'button') {
-                
+
                 // Remove banner on potential navigation
                 setTimeout(removeBanner, 100);
-                
+
                 // Check again after navigation completes
                 setTimeout(checkForEntityIds, 1000);
             }
         });
-        
+
         // Track form submissions
         document.addEventListener('submit', function() {
             removeBanner();
         });
-        
+
         // Track history changes
         window.addEventListener('popstate', function() {
             removeBanner();
             setTimeout(checkForEntityIds, 500);
         });
-        
+
         // Track XHR requests that might indicate navigation
         const originalOpen = XMLHttpRequest.prototype.open;
         XMLHttpRequest.prototype.open = function() {
@@ -246,12 +246,12 @@
             return result;
         };
     }
-    
+
     // Main function to check for entity IDs
     function checkForEntityIds() {
         // Only look at visible text, not hidden elements
         const visibleText = getVisibleText();
-        
+
         // Check for any of our entity IDs
         let foundEntityId = null;
         for (const entityId of currentConfig.entityIds) {
@@ -260,7 +260,7 @@
                 break;
             }
         }
-        
+
         // Update UI based on what we found
         if (foundEntityId) {
             // Only create banner if entity ID changed or banner doesn't exist
@@ -272,7 +272,7 @@
             removeBanner();
         }
     }
-    
+
     // Get visible text from the page
     function getVisibleText() {
         // Get all text nodes that are visible
@@ -285,61 +285,61 @@
                     // Skip hidden elements
                     const element = node.parentElement;
                     if (!element) return NodeFilter.FILTER_REJECT;
-                    
+
                     // Skip our banner
                     if (banner && banner.contains(element)) {
                         return NodeFilter.FILTER_REJECT;
                     }
-                    
+
                     // Skip script and style tags
                     if (element.tagName === 'SCRIPT' || element.tagName === 'STYLE') {
                         return NodeFilter.FILTER_REJECT;
                     }
-                    
+
                     // Check if element is visible
                     const style = window.getComputedStyle(element);
                     if (style.display === 'none' || style.visibility === 'hidden') {
                         return NodeFilter.FILTER_REJECT;
                     }
-                    
+
                     return NodeFilter.FILTER_ACCEPT;
                 }
             }
         );
-        
+
         let node;
         while (node = walker.nextNode()) {
             if (node.textContent.trim()) {
                 textNodes.push(node.textContent);
             }
         }
-        
+
         return textNodes.join(' ');
     }
-    
+
     // Initialize
     function init() {
         console.log('Sherlock Entity ID Highlighter started');
-        
+
         // Load config from localStorage first
         loadLocalConfig();
-        
+
         // Fetch remote config
         fetchRemoteConfig();
-        
+
         // Initial check
         checkForEntityIds();
-        
+
         // Set up navigation tracking
         setupNavigationTracking();
-        
+
         // Check periodically for entity IDs
         setInterval(checkForEntityIds, 2000);
-        
+
         // Check periodically for config updates
         setInterval(fetchRemoteConfig, 60 * 60 * 1000); // Check every hour
     }
-    
+
     // Run when the document is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
