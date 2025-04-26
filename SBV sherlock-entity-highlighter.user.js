@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         SBV Sherlock Entity ID Highlighter
+// @name         Sherlock Entity ID Highlighter (Remote Config)
 // @namespace    http://tampermonkey.net/
 // @version      2.0
-// @description  Entity ID highlighter with remote configuration
+// @description  Entity ID highlighter with remote configuration for real-time updates
 // @author       Inayat Kanth
 // @match        https://sherlock-clicks.amazon.com/tasker/*
 // @match        https://*.sherlock-clicks.amazon.com/*
@@ -17,32 +17,33 @@
     'use strict';
 
     // ====== DEFAULT CONFIGURATION ======
+    // These will be used as fallback if remote config fails
 
-    // Default entity IDs - these will be used if remote fetch fails
+    // Default entity IDs
     const defaultEntityIds = [
-        'ENTITY16ZA6F48AQ9HR',
+        'ENTITY8PY6YS3KUYI',
         'ENTITY3QC3QUMCNO777',
-        'ENTITY2JWP2XAWY2VV2',
-        'ENTITY16ZA6F48AQ9HR',
+        'ENTITY1QD5BMBH1FGDC',
+        'ENTITY30V4GQNAZQN5V',
         'ENTITY1SX33X4DOXCAU'
     ];
 
-    // Default message - this will be used if remote fetch fails
+    // Default message
     const defaultMessage = 'IMPORTANT: This entity requires special attention! Contact Inayat for assistance.';
 
-    // Remote config URL - replace with your own GitHub repository
+    // Remote config URL - replace 'inukanth' with your GitHub username
     const configUrl = 'https://raw.githubusercontent.com/inukanth/sherlock-entity-highlighter/main/config.json';
 
     // How often to check for config updates (in milliseconds)
-    const configUpdateInterval = 24 * 60 * 60 * 1000; // 24 hours
-
+    const configRefreshInterval = 30 * 1000; // Every 30 seconds
+    
     // ====== END DEFAULT CONFIGURATION ======
 
-    // Current configuration - start with defaults
+    // Current configuration (start with defaults)
     let currentConfig = {
         entityIds: defaultEntityIds,
         message: defaultMessage,
-        lastUpdated: 0 // Timestamp for last update
+        lastUpdated: 0
     };
 
     // Add basic CSS
@@ -70,58 +71,78 @@
             font-size: 16px;
             padding: 0 5px;
         }
+        
+        .highlighted-entity {
+            background-color: yellow !important;
+            color: black !important;
+            font-weight: bold !important;
+            padding: 0 2px !important;
+            border: 1px solid orange !important;
+            border-radius: 3px !important;
+            display: inline !important;
+        }
     `);
 
     // Global variables
     let banner = null;
     let activeEntityId = null;
+    
+    // Debug logging function - helps with troubleshooting
+    function debug(message, ...data) {
+        console.log(`[Entity Highlighter] ${message}`, ...data);
+    }
 
-    // Load config from localStorage
+    // ====== REMOTE CONFIG FUNCTIONS ======
+    
+    // Load config from localStorage (cached config)
     function loadLocalConfig() {
         try {
             const savedConfig = localStorage.getItem('entityHighlighterConfig');
             if (savedConfig) {
                 const parsedConfig = JSON.parse(savedConfig);
-
-                // If saved config is valid, use it
-                if (parsedConfig &&
-                    parsedConfig.entityIds &&
-                    parsedConfig.message &&
+                
+                // Validate the config has required properties
+                if (parsedConfig && 
+                    Array.isArray(parsedConfig.entityIds) && 
+                    typeof parsedConfig.message === 'string' &&
                     parsedConfig.lastUpdated) {
-
+                    
                     currentConfig = parsedConfig;
-                    console.log('Loaded config from localStorage:', currentConfig);
+                    debug('Loaded config from cache:', currentConfig);
+                    return true;
                 }
             }
         } catch (error) {
-            console.error('Error loading config from localStorage:', error);
+            debug('Error loading cached config:', error);
         }
+        return false;
     }
-
+    
     // Save config to localStorage
     function saveLocalConfig() {
         try {
             localStorage.setItem('entityHighlighterConfig', JSON.stringify(currentConfig));
-            console.log('Saved config to localStorage');
+            debug('Saved config to cache');
+            return true;
         } catch (error) {
-            console.error('Error saving config to localStorage:', error);
+            debug('Error saving config to cache:', error);
+            return false;
         }
     }
-
-    // Fetch remote config
+    
+    // Fetch remote config from GitHub
     function fetchRemoteConfig() {
-        // Only fetch if it's been more than the update interval
+        // Only fetch if it's been at least 30 seconds since last update
         const now = Date.now();
-        if (now - currentConfig.lastUpdated < configUpdateInterval) {
-            console.log('Using cached config, next update in',
-                        Math.round((configUpdateInterval - (now - currentConfig.lastUpdated)) / 1000 / 60),
-                        'minutes');
+        if (now - currentConfig.lastUpdated < configRefreshInterval) {
+            debug('Using cached config, next check in', 
+                Math.round((configRefreshInterval - (now - currentConfig.lastUpdated)) / 1000), 
+                'seconds');
             return;
         }
-
-        console.log('Fetching remote config...');
-
-        // Use GM_xmlhttpRequest to avoid CORS issues
+        
+        debug('Fetching remote configuration from GitHub');
+        
         GM_xmlhttpRequest({
             method: 'GET',
             url: configUrl,
@@ -129,40 +150,42 @@
                 if (response.status === 200) {
                     try {
                         const config = JSON.parse(response.responseText);
-
-                        // Validate config
-                        if (config &&
-                            Array.isArray(config.entityIds) &&
+                        
+                        // Validate the config
+                        if (config && 
+                            Array.isArray(config.entityIds) && 
                             config.entityIds.length > 0 &&
                             typeof config.message === 'string') {
-
-                            // Update config
+                            
+                            // Update current config
                             currentConfig.entityIds = config.entityIds;
                             currentConfig.message = config.message;
                             currentConfig.lastUpdated = now;
-
-                            // Save to localStorage
+                            
+                            // Save to cache
                             saveLocalConfig();
-
-                            console.log('Updated config from remote:', config);
-
-                            // Re-check entity IDs with new config
+                            
+                            debug('Updated configuration from remote:', config);
+                            
+                            // Re-check page with new config
                             checkForEntityIds();
                         } else {
-                            console.error('Invalid remote config format');
+                            debug('Invalid remote config format:', config);
                         }
                     } catch (error) {
-                        console.error('Error parsing remote config:', error);
+                        debug('Error parsing remote config:', error);
                     }
                 } else {
-                    console.error('Failed to fetch remote config, status:', response.status);
+                    debug('Failed to fetch remote config, status:', response.status);
                 }
             },
             onerror: function(error) {
-                console.error('Error fetching remote config:', error);
+                debug('Error fetching remote config:', error);
             }
         });
     }
+
+    // ====== UI AND HIGHLIGHT FUNCTIONS ======
 
     // Create or update banner
     function createBanner(entityId) {
@@ -201,6 +224,98 @@
         }
         activeEntityId = null;
     }
+
+    // Highlight entity IDs in text - adds yellow highlighting
+    function highlightEntityIds() {
+        // First remove any existing highlights
+        const existingHighlights = document.querySelectorAll('.highlighted-entity');
+        existingHighlights.forEach(el => {
+            const parent = el.parentNode;
+            if (parent) {
+                parent.replaceChild(document.createTextNode(el.textContent), el);
+                parent.normalize();
+            }
+        });
+        
+        // Find and highlight entities in text nodes
+        const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+
+        const nodesToHighlight = [];
+        let node;
+        
+        // First identify all text nodes with entity IDs
+        while (node = walker.nextNode()) {
+            // Skip empty nodes
+            if (!node.textContent.trim()) continue;
+            
+            // Skip nodes in script, style, etc.
+            const parent = node.parentElement;
+            if (!parent) continue;
+            
+            if (parent.tagName === 'SCRIPT' || 
+                parent.tagName === 'STYLE' || 
+                parent.tagName === 'NOSCRIPT' ||
+                parent.tagName === 'INPUT' || 
+                parent.tagName === 'TEXTAREA') {
+                continue;
+            }
+            
+            // Skip our banner
+            if (banner && banner.contains(parent)) {
+                continue;
+            }
+            
+            // Check if node contains any entity ID
+            let containsEntity = false;
+            for (const entityId of currentConfig.entityIds) {
+                if (node.textContent.includes(entityId)) {
+                    containsEntity = true;
+                    break;
+                }
+            }
+            
+            if (containsEntity) {
+                nodesToHighlight.push(node);
+            }
+        }
+        
+        // Now process each node for highlighting
+        nodesToHighlight.forEach(textNode => {
+            const text = textNode.textContent;
+            let newHtml = text;
+            
+            // Replace each entity ID with highlighted version
+            for (const entityId of currentConfig.entityIds) {
+                if (text.includes(entityId)) {
+                    // Simple string replacement (more reliable than regex)
+                    newHtml = newHtml.split(entityId).join(`<span class="highlighted-entity">${entityId}</span>`);
+                }
+            }
+            
+            // Only update if changes were made
+            if (newHtml !== text) {
+                // Create a temporary element to hold the HTML
+                const temp = document.createElement('span');
+                temp.innerHTML = newHtml;
+                
+                // Replace the text node with our highlighted HTML
+                if (textNode.parentNode) {
+                    const fragment = document.createDocumentFragment();
+                    while (temp.firstChild) {
+                        fragment.appendChild(temp.firstChild);
+                    }
+                    textNode.parentNode.replaceChild(fragment, textNode);
+                }
+            }
+        });
+    }
+
+    // ====== NAVIGATION TRACKING ======
 
     // Check for navigation changes
     function setupNavigationTracking() {
@@ -247,6 +362,8 @@
         };
     }
 
+    // ====== CONTENT SCANNING ======
+
     // Main function to check for entity IDs
     function checkForEntityIds() {
         // Only look at visible text, not hidden elements
@@ -267,6 +384,9 @@
             if (foundEntityId !== activeEntityId || !banner) {
                 createBanner(foundEntityId);
             }
+            
+            // Highlight all instances of entity IDs
+            highlightEntityIds();
         } else {
             // No entity found, remove banner
             removeBanner();
@@ -317,13 +437,15 @@
         return textNodes.join(' ');
     }
 
+    // ====== INITIALIZATION ======
+
     // Initialize
     function init() {
-        console.log('Sherlock Entity ID Highlighter started');
+        debug('Sherlock Entity ID Highlighter started');
 
-        // Load config from localStorage first
+        // Try to load cached config first
         loadLocalConfig();
-
+        
         // Fetch remote config
         fetchRemoteConfig();
 
@@ -335,9 +457,23 @@
 
         // Check periodically for entity IDs
         setInterval(checkForEntityIds, 2000);
-
+        
         // Check periodically for config updates
-        setInterval(fetchRemoteConfig, 60 * 60 * 1000); // Check every hour
+        setInterval(fetchRemoteConfig, configRefreshInterval);
+
+        // Add additional listeners for Sherlock-specific navigation
+        if (window.addEventListener) {
+            window.addEventListener('load', function() {
+                // Check after initial load
+                setTimeout(checkForEntityIds, 1000);
+            });
+
+            // Listen for custom events that might indicate navigation
+            window.addEventListener('pageshow', function() {
+                removeBanner();
+                setTimeout(checkForEntityIds, 500);
+            });
+        }
     }
 
     // Run when the document is ready
