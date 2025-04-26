@@ -35,7 +35,7 @@
     const configUrl = 'https://raw.githubusercontent.com/inukanth/sherlock-entity-highlighter/main/config.json';
 
     // How often to check for config updates (in milliseconds)
-    const configRefreshInterval = 30 * 1000; // Every 30 seconds
+    const configRefreshInterval = 5 * 1000; // Every 5 seconds
     
     // ====== END DEFAULT CONFIGURATION ======
 
